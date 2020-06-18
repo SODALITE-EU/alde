@@ -21,7 +21,10 @@
 
 # Main ALDE Falsk start app...
 
+import argparse
 import configparser
+import os
+import sys
 import alde # pragma: no cover
 import logging # pragma: no cover
 import file_upload.upload as upload
@@ -32,38 +35,49 @@ from models import db # pragma: no cover
 fileConfig('logging_config.ini') # pragma: no cover
 logger = logging.getLogger() # pragma: no cover
 
-def load_config():
+def load_config(configpath):
     """
     Functions that loads ALDE configuration from file
     It is specting a file alde_configuration.ini in the same location
     than the main executable
     """
 
-    logger.info("Loading configuration")
+    logger.info("Loading configuration %s", configpath)
     config = configparser.ConfigParser()
-    config.read('alde_configuration.ini')
+    config.read(configpath)
     default = config['DEFAULT']
-    print(default)
-    app_types = [e.strip() for e in default['APP_TYPES'].split(',')]
+    
+    options = [
+        'SQL_LITE_URL',
+        'HOST',
+        'PORT',
+        'APP_UPLOAD_FOLDER',
+        'APP_PROFILE_FOLDER',
+        'APP_TYPES',
+        'COMPARATOR_PATH',
+        'COMPARATOR_FILE',
+        'APP_TYPES'
+    ]
 
-    conf = {
-        'SQL_LITE_URL' : default['SQL_LITE_URL'],
-        'PORT' : default['PORT'],
-        'APP_UPLOAD_FOLDER' : default['APP_UPLOAD_FOLDER'],
-        'APP_PROFILE_FOLDER' : default['APP_PROFILE_FOLDER'],
-        'APP_TYPES' : app_types,
-        'COMPARATOR_PATH' : default['COMPARATOR_PATH'],
-        'COMPARATOR_FILE' : default['COMPARATOR_FILE']
-    }
+    conf = { opt: os.getenv(opt, default[opt]) for opt in options }
+    conf['APP_TYPES'] = [e.strip() for e in conf['APP_TYPES'].split(',')]
 
     return conf
+
+def log_config(conf):
+    msg = "\n".join([ "\t{} = {}".format(key, conf[key]) for key in conf.keys() ])
+    logger.info("ALDE configuration:\n%s\n", msg)
 
 def main(): # pragma: no cover
     """
     Main function that starts the ALDE Flask Service
     """
+    parser = argparse.ArgumentParser(description='Application Lifecycle Deployment Engine')
+    parser.add_argument('--config', type=str, default='alde_configuration.ini', help='configuration file path')
+    args = parser.parse_args()
 
-    conf = load_config() # pragma: no cover
+    conf = load_config(args.config) # pragma: no cover
+    log_config(conf)
 
     logger.info("Starting ALDE") # pragma: no cover
     app = alde.create_app_v1(conf['SQL_LITE_URL'], 
@@ -81,7 +95,7 @@ def main(): # pragma: no cover
     upload_prefix = alde.url_prefix_v1 + "/upload"
     app.register_blueprint(upload.upload_blueprint, url_prefix=upload_prefix)
 
-    app.run(use_reloader=False)
+    app.run(host=conf['HOST'], port=conf['PORT'], use_reloader=False)
 
 if __name__ == '__main__':
     main()

@@ -19,6 +19,7 @@
 #
 
 import unittest
+import unittest.mock as mock
 from app import load_config
 
 class AppTests(unittest.TestCase):
@@ -29,7 +30,7 @@ class AppTests(unittest.TestCase):
     def test_load_config(self):
         """ Test that verifies the app loads the right config """
 
-        conf = load_config()
+        conf = load_config('alde_configuration.ini')
 
         self.assertEquals('sqlite:////tmp/test.db', conf['SQL_LITE_URL'])
         self.assertEquals('5000', conf['PORT'])
@@ -38,3 +39,12 @@ class AppTests(unittest.TestCase):
         self.assertEquals(["RIGID", "MOULDABLE", "CHECKPOINTABLE", "MALLEABLE"], conf['APP_TYPES'])
         self.assertEquals('/tmp/comparator', conf['COMPARATOR_PATH'])
         self.assertEquals('comparator_file.csv', conf['COMPARATOR_FILE'])
+        self.assertEquals('127.0.0.1', conf['HOST'])
+
+    @mock.patch('os.getenv')
+    def test_load_config_envs(self, mock_getenv):
+        mock_getenv.return_value = "5001"
+        
+        conf = load_config('alde_configuration.ini')
+
+        self.assertEquals('5001', conf['PORT'])
