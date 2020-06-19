@@ -17,5 +17,10 @@ pipeline {
                 sh ". venv/bin/activate; pyb"
             }
         }
+        stage('Docker') {
+            steps {
+                sh "git fetch --tags && resources/bin/make_docker.sh alde"
+            }
+        }
     }
 }
