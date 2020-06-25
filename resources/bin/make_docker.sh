@@ -1,20 +1,59 @@
 #!/usr/bin/env bash
-if [ $# -eq 0 ]; then
-    echo "Usage: $0 <image-name>"
+# 
+# Builds or push an image. 
+# Commits on branches (not master) are tagged with the branch name.
+# Commits on master are tagged with latest and with the version number
+# 
+# Usage:
+#   $0 [build|push] <image-name>
+
+build() {
+    set -x
+    docker build --build-arg VERSION=${VERSION} --build-arg DATE=${DATE} -t ${IMAGE}:${VERSION} .
+    set +x
+}
+
+push() {
+    set -x
+    docker push ${IMAGE}:${VERSION}
+    set +x
+    if [ "$BRANCH" = "master" ]; then
+        set -x
+        docker tag ${IMAGE}:${VERSION} ${IMAGE}:latest
+        docker push ${IMAGE}:latest
+        set +x
+    fi
+}
+
+
+if [ $# -ne 2 ] || [[ "$1" != "build" && "$1" != "push" ]] ; then
+    echo "Usage: $0 [build|push] <image-name>"
     exit 1
 fi
-IMAGE=$1
-VERSION=$(git describe --always --dirty)
+
+ACTION=$1
+IMAGE=$2
+VERSION=$(git describe --always --dirty | sed -e"s/^v//")
 DATE=$(date -u +%Y-%m-%dT%H:%M:%S)
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
-VERSION=$(echo $VERSION | sed -e"s/^v//")
+DEFAULT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+JENKINS_BRANCH=${CHANGE_BRANCH:-$GIT_BRANCH}
+# Detect if under Jenkins; if not, use DEFAULT_BRANCH
+BRANCH=${JENKINS_BRANCH:-$DEFAULT_BRANCH}
 
-set -x
-docker build --build-arg VERSION=${VERSION} --build-arg DATE=${DATE} -t ${IMAGE}:${VERSION} .
-set +x
+if [ "$BRANCH" != "master" ]; then
+    VERSION=$(echo $BRANCH | sed -e"s|/|-|")
 
-if [ "$BRANCH" = "master" ]; then
-    set -x
-    docker tag ${IMAGE}:${VERSION} ${IMAGE}:latest
-    set +x
+else
+    if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "Skipping untagged commit on master"
+	exit 0
+    fi
 fi
+
+
+if [ "$ACTION" = "build" ]; then
+    build
+else
+    push
+fi
+
