@@ -17,9 +17,16 @@ pipeline {
                 sh ". venv/bin/activate; pyb"
             }
         }
-        stage('Docker') {
+        stage('Build Docker image') {
             steps {
-                sh "git fetch --tags && resources/bin/make_docker.sh alde"
+                sh "git fetch --tags && resources/bin/make_docker.sh build sodaliteh2020/alde"
+            }
+        }
+        stage('Push image to DockerHub') {
+            steps {
+                withDockerRegistry(credentialsId: 'jenkins-sodalite.docker_token', url: '') {
+                    sh "resources/bin/make_docker.sh push sodaliteh2020/alde"
+                }
             }
         }
     }
