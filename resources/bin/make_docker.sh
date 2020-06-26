@@ -33,12 +33,11 @@ fi
 
 ACTION=$1
 IMAGE=$2
-VERSION=$(git describe --always --dirty)
+VERSION=$(git describe --always --dirty | sed -e"s/^v//")
 DATE=$(date -u +%Y-%m-%dT%H:%M:%S)
 DEFAULT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 # Detect if under Jenkins; if not, use DEFAULT_BRANCH
-BRANCH=${CHANGE_BRANCH:-$DEFAULT_BRANCH}
-VERSION=$(echo $VERSION | sed -e"s/^v//")
+BRANCH=${GIT_BRANCH:-$DEFAULT_BRANCH}
 
 if [ "$BRANCH" != "master" ]; then
     VERSION=$(echo $BRANCH | sed -e"s|/|-|")
