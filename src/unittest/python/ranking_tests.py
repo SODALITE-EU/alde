@@ -41,7 +41,7 @@ class RankingTests(MappingTest):
         super(RankingTests, self).setUp()
 
         self.execution = Execution()
-        self.execution.slurm_sbatch_id = 2333
+        self.execution.batch_id = 2333
 
         execution_configuration = ExecutionConfiguration()
         execution_configuration.id = 22

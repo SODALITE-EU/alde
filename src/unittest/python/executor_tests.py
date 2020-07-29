@@ -181,7 +181,7 @@ class ExecutorTests(MappingTest):
 		self.assertEquals(executor.execute_status_failed, execution.status)
 		self.assertEquals("No support for execurtion type: xxx", execution.output)
 
-	@mock.patch("executor.__add_nodes_to_execution__")
+	@mock.patch("executor_common.add_nodes_to_execution")
 	@mock.patch("shell.execute_command")
 	def test_execute_application_type_singularity_pm(self, mock_shell, mock_add_nodes):
 		"""
@@ -270,7 +270,7 @@ class ExecutorTests(MappingTest):
 
 		self.assertEquals(execution.execution_type, execution_config.execution_type)
 		self.assertEquals(execution.status, Execution.__status_running__)
-		self.assertEquals(3357, execution.slurm_sbatch_id)
+		self.assertEquals(3357, execution.batch_id)
 
 		mock_add_nodes.assert_called_with(execution, "user@testbed.com")
 
@@ -321,7 +321,7 @@ class ExecutorTests(MappingTest):
 
 		self.assertEquals(3357, sbatch_id)
 
-	@mock.patch("executor.__add_nodes_to_execution__")
+	@mock.patch("executor_common.add_nodes_to_execution")
 	@mock.patch("shell.execute_command")
 	def test_execute_application_type_slurm_sbatch(self, mock_shell, mock_add_nodes):
 		"""
@@ -420,7 +420,7 @@ class ExecutorTests(MappingTest):
 		execution = db.session.query(Execution).filter_by(execution_configuration_id=execution_config.id).first()
 		self.assertEquals(execution.execution_type, execution_config.execution_type)
 		self.assertEquals(execution.status, Execution.__status_running__)
-		self.assertEquals(5740, execution.slurm_sbatch_id)
+		self.assertEquals(5740, execution.batch_id)
 
 		mock_add_nodes.assert_called_with(execution, "user@testbed.com")
 
@@ -474,10 +474,10 @@ class ExecutorTests(MappingTest):
 		execution = Execution()
 		execution.execution_type = "typeX"
 		execution.status = "xxx"
-		execution.slurm_sbatch_id = 1
+		execution.batch_id = 1
 		execution_configuration = ExecutionConfiguration()
 		execution.execution_configuration=execution_configuration
-		testbed = Testbed("name", True, "slurm", "ssh", "user@server", ['slurm'])
+		testbed = Testbed("name", True, Testbed.slurm_category, "ssh", "user@server", ['slurm'])
 		execution_configuration.testbed=testbed
 
 		mock_parse.return_value = '?'
@@ -598,7 +598,7 @@ class ExecutorTests(MappingTest):
 
 		self.assertEquals(4610, squeue_id)
 
-	@mock.patch("executor.__add_nodes_to_execution__")
+	@mock.patch("executor_common.add_nodes_to_execution")
 	@mock.patch("slurm.execute_srun")
 	def test_execute_application_type_singularity_srun(self, mock_slurm, mock_add_nodes):
 		"""
@@ -667,7 +667,7 @@ class ExecutorTests(MappingTest):
 
 		self.assertEquals(execution.execution_type, execution_config.execution_type)
 		self.assertEquals(execution.status, Execution.__status_running__)
-		self.assertEquals(4610, execution.slurm_sbatch_id)
+		self.assertEquals(4610, execution.batch_id)
 
 		call_1 = call(testbed, execution_config, executable, deployment, True)
 
@@ -694,14 +694,14 @@ class ExecutorTests(MappingTest):
 
 		self.assertEquals(execution.execution_type, execution_config.execution_type)
 		self.assertEquals(execution.status, Execution.__status_running__)
-		self.assertEquals(4610, execution.slurm_sbatch_id)
+		self.assertEquals(4610, execution.batch_id)
 
 		call_2 = call(testbed, execution_config, executable, deployment, True)
 		calls = [ call_1, call_2]
 		mock_slurm.assert_has_calls(calls)
 		mock_add_nodes.assert_called_with(execution, "user@testbed.com")
 
-	@mock.patch("executor.__add_nodes_to_execution__")
+	@mock.patch("executor_common.add_nodes_to_execution")
 	@mock.patch("shell.execute_command")
 	def test_execute_application_type_slurm_srun(self, mock_shell, mock_add_nodes):
 		"""
@@ -768,7 +768,7 @@ class ExecutorTests(MappingTest):
 
 		self.assertEquals(execution.execution_type, execution_config.execution_type)
 		self.assertEquals(execution.status, Execution.__status_running__)
-		self.assertEquals(4610, execution.slurm_sbatch_id)
+		self.assertEquals(4610, execution.batch_id)
 
 		call_1 = call('(', "user@testbed.com",
 									  [
@@ -813,7 +813,7 @@ class ExecutorTests(MappingTest):
 
 		self.assertEquals(execution.execution_type, execution_config.execution_type)
 		self.assertEquals(execution.status, Execution.__status_running__)
-		self.assertEquals(4610, execution.slurm_sbatch_id)
+		self.assertEquals(4610, execution.batch_id)
 
 		call_2 = call('(', "user@testbed.com",
 									  [
@@ -850,22 +850,22 @@ class ExecutorTests(MappingTest):
 		execution_1 = Execution()
 		execution_1.execution_type = Executable.__type_singularity_srun__
 		execution_1.status = Execution.__status_running__
-		execution_1.slurm_sbatch_id = 1
+		execution_1.batch_id = 1
 		execution_2 = Execution()
 		execution_2.execution_type = Executable.__type_singularity_pm__
 		execution_2.status = Execution.__status_running__
-		execution_2.slurm_sbatch_id = 2
+		execution_2.batch_id = 2
 		execution_3 = Execution()
 		execution_3.execution_type = "other_type"
 		execution_3.status = Execution.__status_running__
-		execution_3.slurm_sbatch_id = 3
+		execution_3.batch_id = 3
 		execution_4 = Execution()
 		execution_4.execution_type = Executable.__type_singularity_pm__
 		execution_4.status = Execution.__status_finished__
-		execution_4.slurm_sbatch_id = 4
+		execution_4.batch_id = 4
 		execution_5 = Execution()
 		execution_5.execution_type = Executable.__type_slurm_sbatch__
-		execution_5.slurm_sbatch_id = 5
+		execution_5.batch_id = 5
 		execution_5.status = Execution.__status_running__
 
 
@@ -878,22 +878,22 @@ class ExecutorTests(MappingTest):
 		execution_21 = Execution()
 		execution_21.execution_type = Executable.__type_singularity_pm__
 		execution_21.status = Execution.__status_running__
-		execution_21.slurm_sbatch_id = 34
+		execution_21.batch_id = 34
 
 		execution_22 = Execution()
 		execution_22.execution_type = Executable.__type_singularity_pm__
 		execution_22.status = Execution.__status_running__
-		execution_22.slurm_sbatch_id = 54
+		execution_22.batch_id = 54
 
 		execution_23 = Execution()
 		execution_23.execution_type = Executable.__type_singularity_pm__
 		execution_23.status = Execution.__status_running__
-		execution_23.slurm_sbatch_id = 33
+		execution_23.batch_id = 33
 
 		execution_24 = Execution()
 		execution_24.execution_type = Executable.__type_singularity_pm__
 		execution_24.status = Execution.__status_cancel__
-		execution_24.slurm_sbatch_id = 55
+		execution_24.batch_id = 55
 
 		execution_2.children = [ execution_21, execution_22, execution_23, execution_24]
 		executor.cancel_execution(execution_2, "user@testbed.com")
@@ -968,7 +968,7 @@ class ExecutorTests(MappingTest):
 		execution.execution_type = Executable.__type_singularity_pm__
 		execution.status = Execution.__status_running__
 		execution.execution_configuration = execution_configuration
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		db.session.add(execution)
 		db.session.commit()
 
@@ -987,7 +987,7 @@ class ExecutorTests(MappingTest):
 
 		# We verify the execution got the extra job id
 		execution = db.session.query(Execution).filter_by(execution_configuration_id=execution_configuration.id).first()
-		self.assertEquals(222, execution.children[0].slurm_sbatch_id)
+		self.assertEquals(222, execution.children[0].batch_id)
 		self.assertEquals(Execution.__status_running__, execution.children[0].status)
 		self.assertEquals(Executable.__type_singularity_pm__, execution.children[0].execution_type)
 		self.assertEquals(execution, execution.children[0].parent)
@@ -1186,7 +1186,7 @@ class ExecutorTests(MappingTest):
 		execution.execution_type = Executable.__type_singularity_pm__
 		execution.status = Execution.__status_running__
 		execution.execution_configuration = execution_configuration
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		db.session.add(execution)
 		db.session.commit()
 
@@ -1196,11 +1196,11 @@ class ExecutorTests(MappingTest):
 		db.session.add(execution)
 		db.session.commit()
 		child_1 = Execution()
-		child_1.slurm_sbatch_id = 34
+		child_1.batch_id = 34
 		child_1.status = Execution.__status_running__
 		execution.children.append(child_1)
 		child_2 = Execution()
-		child_2.slurm_sbatch_id = 35
+		child_2.batch_id = 35
 		child_2.status = Execution.__status_running__
 		execution.children.append(child_2)
 		db.session.commit()
@@ -1217,7 +1217,7 @@ class ExecutorTests(MappingTest):
 		mock_shell.return_value = b'Cluster default /home_nfs/home_ejarquej/matmul-cuda8-y3.img\n     COMPSS_HOME=/home_nfs/home_ejarquej/installations/2.2.6/COMPSs\n     [Adaptation] writting command CREATE SLURM-Cluster default /home_nfs/home_ejarquej/matmul-cuda8-y3.img on /fslustre/tango/matmul/log_dir/.COMPSs/7065/adaptation/command_pipe\n     [Adaptation] Reading result /fslustre/tango/matmul/log_dir/.COMPSs/7065/adaptation/result_pipe\n     [Adaptation] Read ACK\n    [Adaptation]'
 		
 		executor.remove_resource(execution)
-		execution = db.session.query(Execution).filter_by(slurm_sbatch_id=35).first()
+		execution = db.session.query(Execution).filter_by(batch_id=35).first()
 		self.assertEquals(Execution.__status_cancelled__, execution.status)
 
 		calls = [ call_1, call_1 ]
@@ -1299,7 +1299,7 @@ class ExecutorTests(MappingTest):
 
 		# TEST - No node should be added
 		mock_shell.return_value = b'\n'
-		execution.slurm_sbatch_id = ''
+		execution.batch_id = ''
 		execution.status = Execution.__status_running__
 		db.session.commit()
 
@@ -1310,7 +1310,7 @@ class ExecutorTests(MappingTest):
 		# We add the first return
 		mock_shell.return_value = b'node1\n'
 		
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		execution.status = Execution.__status_running__
 		db.session.commit()
 
@@ -1323,7 +1323,7 @@ class ExecutorTests(MappingTest):
 		mock_shell.return_value = b'node1,node51\n'
 
 		execution = Execution()
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		execution.status = Execution.__status_running__
 		db.session.add(execution)
 		db.session.commit()
@@ -1337,7 +1337,7 @@ class ExecutorTests(MappingTest):
 		mock_shell.return_value = b'node[50-52]\n'
 
 		execution = Execution()
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		execution.status = Execution.__status_running__
 		db.session.add(execution)
 		db.session.commit()
@@ -1352,7 +1352,7 @@ class ExecutorTests(MappingTest):
 		mock_shell.return_value = b'node[50-51],node[53-54]\n'
 
 		execution = Execution()
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		execution.status = Execution.__status_running__
 		db.session.add(execution)
 		db.session.commit()
@@ -1368,7 +1368,7 @@ class ExecutorTests(MappingTest):
 		mock_shell.return_value = b'node1,node[50-51]\n'
 
 		execution = Execution()
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		execution.status = Execution.__status_running__
 		db.session.add(execution)
 		db.session.commit()
@@ -1496,7 +1496,7 @@ class ExecutorTests(MappingTest):
 		db.session.commit()
 
 		execution = Execution()
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		execution.status = Execution.__status_running__
 		execution.execution_configuration = execution_config
 		db.session.add(execution)
@@ -1509,10 +1509,10 @@ class ExecutorTests(MappingTest):
 
 		execution = db.session.query(Execution).filter_by(id=execution.id).first()
 		self.assertEquals(1, len(execution.children))
-		self.assertEquals(-1, execution.slurm_sbatch_id)
+		self.assertEquals(-1, execution.batch_id)
 		self.assertEquals(Execution.__status_stopped__, execution.status)
 		child = execution.children[0]
-		self.assertEquals(21, child.slurm_sbatch_id)
+		self.assertEquals(21, child.batch_id)
 		self.assertEquals(Execution.__status_running__, child.status) # It should be cancelled, but we are doing that with scancel
 		self.assertEquals(execution_config, child.execution_configuration)
 		mock_cancel.assert_called_with(child, 'user@testbed.com')
@@ -1522,7 +1522,7 @@ class ExecutorTests(MappingTest):
 		child_2 = Execution()
 		child_2.status = Execution.__status_cancelled__
 		child_2.execution_configuration = execution.execution_configuration
-		child_2.slurm_sbatch_id = 33
+		child_2.batch_id = 33
 
 		execution.children.append(child)
 		execution.status = Execution.__status_restarted__
@@ -1582,7 +1582,7 @@ class ExecutorTests(MappingTest):
 		db.session.commit()
 
 		execution = Execution()
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		execution.status = Execution.__status_running__
 		execution.execution_configuration = execution_config
 		db.session.add(execution)
@@ -1646,7 +1646,7 @@ class ExecutorTests(MappingTest):
 		db.session.commit()
 
 		execution = Execution()
-		execution.slurm_sbatch_id = 21
+		execution.batch_id = 21
 		execution.status = Execution.__status_stopped__
 		execution.execution_configuration = execution_config
 		execution.execution_type = execution_config.execution_type
@@ -1656,7 +1656,7 @@ class ExecutorTests(MappingTest):
 		child = Execution()
 		child.status = Execution.__status_cancelled__
 		child.execution_configuration = execution.execution_configuration
-		child.slurm_sbatch_id = 33
+		child.batch_id = 33
 		execution.children.append(child)
 		db.session.commit()
 

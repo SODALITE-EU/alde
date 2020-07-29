@@ -8,6 +8,7 @@ class Application {
 class Executable {
   status
   singularity_image_file  #path of img
+  executable_file         # path of script
   compilation_type
   compilation_script
 }
@@ -45,7 +46,7 @@ class Execution {
   execution_type
   status
   output
-  slurm_sbatch_id
+  batch_id
   
 }
 

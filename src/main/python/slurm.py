@@ -25,8 +25,9 @@ import query
 import logging
 import linux_probes.cpu_info_parser as parser
 import inventory
-from models import db, Testbed, Node, CPU, GPU, Memory
+from models import db, Testbed, Node, CPU, GPU, Memory, Execution, Executable
 
+import executor_common
 import testbeds.common
 from testbeds.constants import NAME
 from testbeds.constants import MEMORY
@@ -300,7 +301,7 @@ def execute_srun(testbed, execution_configuration, executable, deployment, singu
     This will execute an slurm application and return the output
     """
 
-	# Preparing the command to be executed
+    # Preparing the command to be executed
     command = "' ("
     endpoint = testbed.endpoint
     params = []
@@ -338,6 +339,50 @@ def execute_srun(testbed, execution_configuration, executable, deployment, singu
     
     return output
 
+def execute_batch(execution, identifier):
+    """
+    Executes an application with a device supervisor configured
+    for slurm sbatch
+    """
+    execution_configuration, testbed, deployment, executable = executor_common.get_db_info(
+        execution, identifier)
+
+    if testbed.category != Testbed.slurm_category:
+        # If the category is not SLURM we can not execute the app
+        execution.status = Execution.__status_failed__
+        execution.output = "Testbed does not support " + Executable.__type_slurm_sbatch__ + " applications"
+        db.session.commit()
+
+    elif not testbed.on_line :
+        # If the testbed is off-line is not SLURM we can not execute the app
+        execution.status = Execution.__status_failed__
+        execution.output = "Testbed is off-line"
+        db.session.commit()
+
+    else:
+        # Preparing the command to be executed
+        command = "sbatch"
+        endpoint = testbed.endpoint
+        params = []
+        params.append(executable.executable_file)
+
+        logging.info("Launching execution of application: command: " + command + " | endpoint: " + endpoint + " | params: " + str(params))
+
+        output = shell.execute_command(command, endpoint, params)
+        print(output)
+
+        sbatch_id = extract_id_from_sbatch(output)
+        
+        #execution = Execution()
+        execution.execution_type = execution_configuration.execution_type
+        execution.status = Execution.__status_running__
+        execution_configuration.executions.append(execution)
+        execution.batch_id = sbatch_id
+        db.session.commit()
+
+        # Add nodes
+        executor_common.add_nodes_to_execution(execution, endpoint)
+    
 def stop_execution(execution_id, endpoint):
     """
     This will use scontrol to stop an execution
@@ -352,3 +397,12 @@ def stop_execution(execution_id, endpoint):
         shell.execute_command(command=command, server=endpoint, params=params)
     else :
         shell.execute_command(command=command, params=params)
+
+
+def extract_id_from_sbatch(output):
+	"""
+	It parses the sbatch command output
+	"""
+	output = output.decode('utf-8')
+	output = output.split()
+	return output[-1]

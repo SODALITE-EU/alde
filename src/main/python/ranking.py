@@ -52,7 +52,7 @@ def _execute_comparator(execution, endpoint, path):
     """
 
     shell.execute_command(os.path.join(path,'post_run_processing.sh'), endpoint, [
-        str(execution.slurm_sbatch_id),
+        str(execution.batch_id),
         execution.execution_configuration.application.name,
         str(execution.execution_configuration.id)
     ])
@@ -67,7 +67,7 @@ def update_ranking_info_for_an_execution(execution, path, file):
 
     _execute_comparator(execution, endpoint, path)
 
-    ranking = _read_ranking_info(file, execution.slurm_sbatch_id)
+    ranking = _read_ranking_info(file, execution.batch_id)
 
     if len(ranking) > 3 :
 
