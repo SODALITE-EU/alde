@@ -29,6 +29,7 @@ import ranking
 import slurm
 from sqlalchemy import or_
 from flask import current_app as app
+import executor_common
 
 execute_type_slurm_sbatch = Executable.__type_slurm_sbatch__
 execute_type_singularity_pm = Executable.__type_singularity_pm__
@@ -155,7 +156,7 @@ def __execute_pm_applications__(execution, identifier, create_profile, use_stora
 	# if we create the profile, we add it to the execution configuration
 	if create_profile :
 		execution_configuration.profile_file = profile_file
-	execution.slurm_sbatch_id = sbatch_id
+	execution.batch_id = sbatch_id
 	db.session.commit()
 
 	# Add nodes
@@ -166,14 +167,7 @@ def __get_srun_info__(execution, identifier):
 	"""
 	Internal method that gets all the necessary srun information
 	"""
-
-	# Lets recover all the information needed...execution_configuration
-	execution_configuration = db.session.query(ExecutionConfiguration).filter_by(id=identifier).first() # This is to avoid reusing objects from other thread
-	testbed = db.session.query(Testbed).filter_by(id=execution_configuration.testbed_id).first()
-	deployment = db.session.query(Deployment).filter_by(executable_id=execution_configuration.executable_id, testbed_id=testbed.id).first()
-	executable = db.session.query(Executable).filter_by(id=execution_configuration.executable_id).first()
-
-	return execution_configuration, testbed, deployment, executable
+	return executor_common.get_db_info(execution, identifier)
 
 
 def execute_application_type_slurm_srun(execution, identifier, child_execution=None):
@@ -251,7 +245,7 @@ def __parse_output__(output, endpoint, execution_configuration, child_execution=
 		execution_configuration.executions.append(execution)
 	
 	execution.status = Execution.__status_running__
-	execution.slurm_sbatch_id = sbatch_id
+	execution.batch_id = sbatch_id
 	db.session.commit()
 
 	# Add nodes
@@ -297,58 +291,20 @@ def __extract_id_from_sigularity_pm_app__(output):
 	last = ' '.join(last.split())
 	return int(last.split()[-1])
 
+
 def execute_application_type_slurm_sbatch(execution, identifier):
 	"""
 	Executes an application with a device supervisor configured
 	for slurm sbatch
 	"""
+	slurm.execute_batch(execution, identifier)
 
-	execution_configuration, testbed, deployment, executable = __get_srun_info__(execution, identifier)
-
-	if testbed.category != Testbed.slurm_category:
-		# If the category is not SLURM we can not execute the app
-		execution.status = execute_status_failed
-		execution.output = "Testbed does not support " + execute_type_slurm_sbatch + " applications"
-		db.session.commit()
-
-	elif not testbed.on_line :
-		# If the testbed is off-line is not SLURM we can not execute the app
-		execution.status = execute_status_failed
-		execution.output = "Testbed is off-line"
-		db.session.commit()
-
-	else:
-		# Preparing the command to be executed
-		command = "sbatch"
-		endpoint = testbed.endpoint
-		params = []
-		params.append(executable.executable_file)
-
-		logging.info("Launching execution of application: command: " + command + " | endpoint: " + endpoint + " | params: " + str(params))
-
-		output = shell.execute_command(command, endpoint, params)
-		print(output)
-
-		sbatch_id = __extract_id_from_sbatch__(output)
-		
-		execution = Execution()
-		execution.execution_type = execution_configuration.execution_type
-		execution.status = Execution.__status_running__
-		execution_configuration.executions.append(execution)
-		execution.slurm_sbatch_id = sbatch_id
-		db.session.commit()
-
-		# Add nodes
-		__add_nodes_to_execution__(execution, endpoint)
 
 def __extract_id_from_sbatch__(output):
 	"""
 	It parses the sbatch command output
 	"""
-
-	output = output.decode('utf-8')
-	output = output.split()
-	return output[-1]
+	return slurm.extract_id_from_sbatch(output)
 
 
 def upload_deployment(executable, testbed, app_folder='/tmp'):
@@ -391,7 +347,9 @@ def monitor_execution_apps():
 
 	for execution in executions :
 
-		if execution.execution_type == Executable.__type_singularity_pm__ or execution.execution_type == Executable.__type_pm__ or execution.execution_type == Executable.__type_singularity_srun__ or execution.execution_type == Executable.__type_slurm_srun__ or execution.execution_type == Executable.__type_slurm_sbatch__:
+		slurm_types = (Executable.__type_singularity_pm__, Executable.__type_pm__, Executable.__type_singularity_srun__, Executable.__type_slurm_srun__, Executable.__type_slurm_sbatch__)
+		if execution.execution_type in slurm_types:
+
 			status = monitor_execution_singularity_apps(execution)
 			execution.status = status
 			
@@ -406,13 +364,12 @@ def monitor_execution_apps():
 			db.session.commit()
 
 
-
 def monitor_execution_singularity_apps(execution):
 	"""	
 	It monitors the execution of singularity applications
 	"""
 
-	sbatch_id = execution.slurm_sbatch_id
+	sbatch_id = execution.batch_id
 	
 	testbed = None
 	if execution.parent is None :
@@ -420,13 +377,17 @@ def monitor_execution_singularity_apps(execution):
 	else : 
 		testbed = execution.parent.execution_configuration.testbed
 
-	status = _parse_sacct_output(sbatch_id, testbed.endpoint)
+	if testbed.category == Testbed.slurm_category:
+		status = _parse_sacct_output(sbatch_id, testbed.endpoint)
+	else:
+		return '?'
 
-	if status == Execution.__status_finished__ and execution.status == Execution.__status_running__ :
-		# ranking.update_ranking_info_for_an_execution(execution, '/home_nfs/home_garciad/comparator', 'Measurements.csv')
-		ranking.update_ranking_info_for_an_execution(execution, 
-		 											  app.config['COMPARATOR_PATH'],
-													  app.config['COMPARATOR_FILE'])
+	# FIX: RuntimeError: Working outside of application context
+	#if status == Execution.__status_finished__ and execution.status == Execution.__status_running__ :
+	#	# ranking.update_ranking_info_for_an_execution(execution, '/home_nfs/home_garciad/comparator', 'Measurements.csv')
+	#	ranking.update_ranking_info_for_an_execution(execution, 
+	#	 											  app.config['COMPARATOR_PATH'],
+	#													  app.config['COMPARATOR_FILE'])
 
 	if status == '?':
 		return execution.status
@@ -447,17 +408,17 @@ def _parse_sacct_output(id, url):
 	if output.count(b'\n') <= 2:
 		return '?'
 	elif output.count(b'RUNNING') >= 1:
-		return 'RUNNING'
+		return Execution.__status_running__
 	elif output.count(b'FAILED') >= 1:
-		return 'FAILED'
+		return Execution.__status_failed__
 	elif output.count(b'COMPLETED') >= 1:
-		return 'COMPLETED'
+		return Execution.__status_finished__
 	elif output.count(b'TIMEOUT') >= 1:
 		return 'TIMEOUT'
 	elif output.count(b'CANCELLED') >= 1:
-		return 'CANCELLED'
+		return Execution.__status_cancelled__
 	else:
-		return 'UNKNOWN'
+		return Execution.__status_unknown__
 	
 def find_squeue_job_status(command_output):
 	"""
@@ -486,9 +447,9 @@ def cancel_execution(execution, url):
 		if execution.children is not None :
 			for child in execution.children :
 				if child.status == Execution.__status_running__ :
-					shell.execute_command('scancel', url, [ str(child.slurm_sbatch_id) ])
+					shell.execute_command('scancel', url, [ str(child.batch_id) ])
 
-		shell.execute_command('scancel', url, [ str(execution.slurm_sbatch_id) ])
+		shell.execute_command('scancel', url, [ str(execution.batch_id) ])
 
 def remove_resource(execution):
 	"""
@@ -503,12 +464,12 @@ def remove_resource(execution):
 		if (( execution.status == Execution.__status_running__)) :
 			url = execution.execution_configuration.testbed.endpoint
 			enqueue_env_file = execution.execution_configuration.testbed.extra_config['enqueue_env_file']
-			sbatch_id = execution.slurm_sbatch_id
+			sbatch_id = execution.batch_id
 			
 			if len(execution.children) > 0 :
 				execution_to_remove = execution.children[-1]
 				node = find_first_node(sbatch_id, url)
-				node_job_to_remove = find_first_node(execution_to_remove.slurm_sbatch_id, url)
+				node_job_to_remove = find_first_node(execution_to_remove.batch_id, url)
 
 				command = "source"
 				params = []
@@ -552,7 +513,7 @@ def add_resource(execution):
 			scaling_upper_bound = execution.execution_configuration.application.scaling_upper_bound
 			enqueue_env_file = execution.execution_configuration.testbed.extra_config['enqueue_env_file']
 			singularity_image_file = execution.execution_configuration.executable.singularity_image_file
-			sbatch_id = execution.slurm_sbatch_id
+			sbatch_id = execution.batch_id
 
 			upper_bound_ok = True
 			if ( scaling_upper_bound is not None ) and ( scaling_upper_bound != 0 ) :
@@ -583,7 +544,7 @@ def add_resource(execution):
 					child = Execution()
 					child.status = Execution.__status_running__
 					child.execution_type = execute_type_singularity_pm
-					child.slurm_sbatch_id = extra_job_id
+					child.batch_id = extra_job_id
 					execution.children.append(child)
 					db.session.commit()
 					time.sleep(5)
@@ -708,36 +669,8 @@ def __add_nodes_to_execution__(execution, url):
 	[garciad@ns54 ~]$ squeue -j 7286 -h -o "%N"
 	ns51
 	"""
+	executor_common.add_nodes_to_execution(execution, url)
 
-	if execution.status == Execution.__status_running__ and execution.slurm_sbatch_id != None :
-
-		command_output = shell.execute_command("squeue", url , [ '-j ' + str(execution.slurm_sbatch_id) , '-h -o "%N"' ])
-		
-		if command_output != b'\n' :
-			nodes = []
-			nodes_string = command_output.decode('utf-8').split('\n')[0]
-
-			array_nodes = nodes_string.split(',')
-
-			for node_in_array in array_nodes :
-
-				if '[' not in node_in_array :
-					node = db.session.query(Node).filter_by(name=str(node_in_array)).first()
-					nodes.append(node)
-				else :
-					node_start_name = node_in_array.split('[')[0]
-					boundaries = node_in_array.split('[')[1].split(']')[0]
-					limits = boundaries.split('-')
-					start = int(limits[0])
-					end = int(limits[1]) + 1
-
-					for number in range(start,end) :
-						node_name = node_start_name + str(number)
-						node = db.session.query(Node).filter_by(name=node_name).first()
-						nodes.append(node)
-				
-			execution.nodes = nodes
-			db.session.commit()
 
 def drain_a_node(node_id, reason):
 	"""
@@ -787,9 +720,9 @@ def stop_execution(execution):
 			child.status = Execution.__status_running__
 			child.execution_configuration = execution.execution_configuration
 			child.execution_type = execution.execution_configuration.execution_type
-			child.slurm_sbatch_id = execution.slurm_sbatch_id
+			child.batch_id = execution.batch_id
 
-			execution.slurm_sbatch_id = -1
+			execution.batch_id = -1
 			execution.children.append(child)
 		else :
 			child = next(filter(lambda child : child.status == Execution.__status_running__, execution.children)) # Only one execution can be running
@@ -799,7 +732,7 @@ def stop_execution(execution):
 
 		cancel_execution(child, execution.execution_configuration.testbed.endpoint)
 	else :
-		slurm.stop_execution(execution.slurm_sbatch_id, execution.execution_configuration.testbed.endpoint)
+		slurm.stop_execution(execution.batch_id, execution.execution_configuration.testbed.endpoint)
 
 def restart_execution(execution):
 	"""

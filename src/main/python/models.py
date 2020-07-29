@@ -114,7 +114,7 @@ class Execution(db.Model):
     output = db.Column(db.String)
     execution_configuration_id = db.Column(db.Integer, db.ForeignKey('execution_configurations.id'))
     execution_configuration = db.relationship("ExecutionConfiguration")
-    slurm_sbatch_id = db.Column(db.Integer)
+    batch_id = db.Column(db.Integer)
     nodes = db.relationship("Node", secondary=execution_nodes_association_table)
     parent_id = db.Column(db.Integer, db.ForeignKey('executions.id'))
     children = db.relationship("Execution",
