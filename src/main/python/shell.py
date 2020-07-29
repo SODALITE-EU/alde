@@ -45,13 +45,15 @@ def _execute_command(command):
         logging.error(e.stdout)
         raise e
 
-def execute_command(command, server='', params=[]):
+def execute_command(command, server='', params=None):
     """
     It executes a command, if server variable it is set, it will try to
     execute the command via ssh. It is not able to input user and password
     it is exected it is possible to connect to the server without it
     """
 
+    if params is None:
+        params = []
     try:
         params.insert(0, command)
 
