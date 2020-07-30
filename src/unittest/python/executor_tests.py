@@ -94,12 +94,13 @@ class ExecutorTests(MappingTest):
 		mock_execute.assert_called_with('mkdir', testbed.endpoint, [ path ])
 		mock_scp.assert_called_with(executable.singularity_image_file, testbed.endpoint, path + "/")
 
+	@mock.patch("torque.execute_batch")
 	@mock.patch("executor.execute_application_type_pm")
 	@mock.patch("executor.execute_application_type_slurm_srun")
 	@mock.patch("executor.execute_application_type_singularity_srun")
 	@mock.patch("executor.execute_application_type_singularity_pm")
 	@mock.patch("executor.execute_application_type_slurm_sbatch")
-	def test_execute_application(self, mock_slurm_sbatch, mock_singularity, mock_singularity_srun, mock_slurm_srun, mock_pm):
+	def test_execute_application(self, mock_slurm_sbatch, mock_singularity, mock_singularity_srun, mock_slurm_srun, mock_pm, mock_torque_qsub):
 		"""
 		Verifies that the right methods and status are set when an appplication is executed
 		"""
@@ -179,6 +180,30 @@ class ExecutorTests(MappingTest):
 		execution = db.session.query(Execution).filter_by(execution_type="xxx").first()
 		self.assertEquals("xxx", execution.execution_type)
 		self.assertEquals(executor.execute_status_failed, execution.status)
+		self.assertEquals("No support for execurtion type: xxx", execution.output)
+
+		# TORQUE:QSUB
+		execution_configuration.execution_type = Executable.__type_torque_qsub__
+		db.session.commit()
+
+		t = executor.execute_application(execution_configuration, False)
+		execution = db.session.query(Execution).filter_by(execution_type=Executable.__type_torque_qsub__).first()
+		self.assertEqual(Executable.__type_torque_qsub__, execution.execution_type)
+		self.assertEqual(Execution.__status_submitted__, execution.status)
+
+		# We verify that the right method was called
+		t.join()
+		mock_torque_qsub.assert_called_with(execution, execution_configuration.id)
+
+		# We verify the wrong status of unrecognize execution type
+		execution_configuration.execution_type = "xxx"
+		db.session.commit()
+
+		executor.execute_application(execution_configuration, False)
+
+		execution = db.session.query(Execution).filter_by(execution_type="xxx").first()
+		self.assertEquals("xxx", execution.execution_type)
+		self.assertEquals(Execution.__status_failed__, execution.status)
 		self.assertEquals("No support for execurtion type: xxx", execution.output)
 
 	@mock.patch("executor_common.add_nodes_to_execution")
@@ -450,16 +475,22 @@ class ExecutorTests(MappingTest):
 		execution_3.execution_type = Executable.__type_singularity_pm__
 		execution_3.status = Execution.__status_running__
 		execution_3.execution_configuration = execution_configuration
+		execution_4 = Execution()
+		execution_4.execution_type = Executable.__type_torque_qsub__
+		execution_4.status = Execution.__status_running__
+		execution_4.execution_configuration = execution_configuration
 
 		mock_monitor.return_value = 'pepito'
 
 		db.session.add(execution_1)
 		db.session.add(execution_2)
 		db.session.add(execution_3)
+		db.session.add(execution_4)
 		db.session.commit()
 
 		executor.monitor_execution_apps()
-		mock_monitor.assert_called_with(execution_3)
+		mock_monitor.assert_any_call(execution_3)
+		mock_monitor.assert_any_call(execution_4)
 
 		self.assertEquals('pepito', execution_3.status)
 

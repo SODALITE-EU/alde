@@ -27,11 +27,13 @@ import logging
 import time
 import ranking
 import slurm
+import torque
 from sqlalchemy import or_
 from flask import current_app as app
 import executor_common
 
 execute_type_slurm_sbatch = Executable.__type_slurm_sbatch__
+execute_type_torque_qsub = Executable.__type_torque_qsub__
 execute_type_singularity_pm = Executable.__type_singularity_pm__
 execute_type_singularity_srun = Executable.__type_singularity_srun__
 execute_type_slurm_srun = Executable.__type_slurm_srun__
@@ -60,6 +62,10 @@ def execute_application(execution_configuration, create_profile=False, use_store
 	if execution.execution_type == execute_type_slurm_sbatch :
 
 		t = Thread(target=execute_application_type_slurm_sbatch, args=(execution, execution_configuration.id))
+		t.start()
+		return t
+	elif execution.execution_type == execute_type_torque_qsub:
+		t = Thread(target=torque.execute_batch, args=(execution, execution_configuration.id))
 		t.start()
 		return t
 	elif execution.execution_type == execute_type_singularity_pm :
@@ -348,6 +354,7 @@ def monitor_execution_apps():
 	for execution in executions :
 
 		slurm_types = (Executable.__type_singularity_pm__, Executable.__type_pm__, Executable.__type_singularity_srun__, Executable.__type_slurm_srun__, Executable.__type_slurm_sbatch__)
+		torque_types = (Executable.__type_torque_qsub__, )
 		if execution.execution_type in slurm_types:
 
 			status = monitor_execution_singularity_apps(execution)
@@ -363,6 +370,13 @@ def monitor_execution_apps():
 				__add_nodes_to_execution__(execution, testbed.endpoint)
 			db.session.commit()
 
+		if execution.execution_type in torque_types:
+			status = monitor_execution_singularity_apps(execution)
+			execution.status = status
+			# TODO: add_nodes_to_execution
+			db.session.commit()
+
+
 
 def monitor_execution_singularity_apps(execution):
 	"""	
@@ -377,7 +391,14 @@ def monitor_execution_singularity_apps(execution):
 	else : 
 		testbed = execution.parent.execution_configuration.testbed
 
-	if testbed.category == Testbed.slurm_category:
+	if testbed.category == Testbed.torque_category:
+		output = torque.exec_qstat(testbed.endpoint)
+		status = torque.parse_qstat_output(output, sbatch_id)[sbatch_id]
+    	#Finished jobs dissapear from qstat after a short time. If so, consider the
+    	#job as completed.
+		if status == '?' and execution.status in (Execution.__status_running__, Execution.__status_submitted__):
+			status = Execution.__status_finished__
+	elif testbed.category == Testbed.slurm_category:
 		status = _parse_sacct_output(sbatch_id, testbed.endpoint)
 	else:
 		return '?'
