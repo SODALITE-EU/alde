@@ -28,7 +28,8 @@ import logging
 import linux_probes.cpu_info_parser as parser
 import inventory
 import xmltodict
-from models import db, Testbed, Node, CPU, GPU, Memory
+import executor_common
+from models import db, Testbed, Node, CPU, GPU, Memory, Execution, Testbed, Executable
 from typing import Dict, List, Tuple
 
 from testbeds.constants import NAME
@@ -167,3 +168,98 @@ def _find_gpus(status: Dict):
         yield _parse_status(status[field], ";")
         i = i + 1
     return
+
+
+def execute_batch(execution, identifier):
+    """
+    Executes an application with a device supervisor configured
+    for slurm sbatch
+    """
+    execution_configuration, testbed, deployment, executable = executor_common.get_db_info(
+        execution, identifier)
+
+    if testbed.category != Testbed.torque_category:
+        # If the category is not TORQUE we can not execute the app
+        execution.status = Execution.__status_failed__
+        execution.output = "Testbed does not support " + Executable.__type_torque_qsub__ + " applications"
+        db.session.commit()
+
+    elif not testbed.on_line :
+        # If the testbed is off-line we can not execute the app
+        execution.status = Execution.__status_failed__
+        execution.output = "Testbed is off-line"
+        db.session.commit()
+
+    else:
+        # Preparing the command to be executed
+        command = "qsub"
+        endpoint = testbed.endpoint
+        params = []
+        params.append(executable.executable_file)
+
+        logging.info("Launching execution of application: command: " + command + " | endpoint: " + endpoint + " | params: " + str(params))
+
+        output = shell.execute_command(command, endpoint, params)
+        qsub_id = extract_id_from_qsub(output)
+        
+        #execution = Execution()
+        execution.execution_type = execution_configuration.execution_type
+        execution.status = Execution.__status_running__
+        execution_configuration.executions.append(execution)
+        execution.batch_id = qsub_id
+        db.session.commit()
+
+        # Add nodes
+        # TODO
+        #executor_common.add_nodes_to_execution(execution, endpoint)
+
+
+def extract_id_from_qsub(output):
+    output = output.decode('utf-8').split()
+    return output[0]
+
+def exec_qstat(endpoint: str):
+    output = shell.execute_command('qstat', server=endpoint)
+    output = output.decode('utf-8')
+    return output
+
+
+def parse_qstat_output(output: str, job_id=None) -> Dict:
+    """Parse the output of qstat. It returns a dict(key=job_id, value=status).
+    If the parameter id is passed, the returned dict only has one key 
+    (the id parameter) - if no line is found in qstat for id, the status is '?'. 
+
+    C -  Job is completed after having run/
+    E -  Job is exiting after having run.
+    H -  Job is held.
+    Q -  job is queued, eligible to run or routed.
+    R -  job is running.
+    T -  job is being moved to new location.
+    W -  job is waiting for its execution time
+        (-a option) to be reached.
+    S -  (Unicos only) job is suspend.
+    """
+    result = {}
+
+    lines = output.split("\n")
+
+    status = {
+        'C': Execution.__status_finished__,
+        'R': Execution.__status_running__,
+        'Q': Execution.__status_running__,
+        'E': Execution.__status_cancelled__,
+    }
+    if len(lines) > 3:
+        for line in lines[2:]:
+            fields = line.split()
+            if fields == []:
+                continue
+            f_id = fields[0]
+            f_status = fields[-2]
+            
+            result[f_id] = status.get(f_status, Execution.__status_unknown__)
+
+    if job_id is not None: 
+        return { job_id: result.get(job_id, '?') }
+
+    return result

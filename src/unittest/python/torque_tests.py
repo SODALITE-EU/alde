@@ -25,7 +25,7 @@ import unittest
 import unittest.mock as mock
 import re
 import inventory
-from models import Testbed, Application, Deployment, ExecutionConfiguration, Executable
+from models import Testbed, Application, Deployment, ExecutionConfiguration, Executable, Execution
 from sqlalchemy_mapping_tests.mapping_tests import MappingTest
 from models import db, Testbed, Node, CPU, Memory
 import torque
@@ -34,9 +34,9 @@ from testfixtures import LogCapture
 from unittest.mock import call
 
 
-def read(relpath: str) -> str:
+def read(relpath: str):
     path = os.path.join(os.path.dirname(__file__), relpath)
-    f = open(path)
+    f = open(path, 'rb')
     result = f.read()
     f.close()
     return result
@@ -263,3 +263,123 @@ class TorqueTests(MappingTest):
 
         m = torque.parse_memory("1s1gb")
         self.assertEqual(str(Memory(0, Memory.MEGABYTE)), str(m))
+
+    @mock.patch('shell.execute_command')
+    def test_exec_qstat(self, mock_shell):
+        mock_shell.return_value = read('testdata/qstat.out')
+        endpoint = "user@host"
+        self.assertNotEqual('', torque.exec_qstat(endpoint))
+
+    def test_parse_qstat_output(self):
+        output = read('testdata/qstat.out').decode('utf-8')
+
+        self._check_qstat(output, 'C', Execution.__status_finished__)
+        self._check_qstat(output, 'R', Execution.__status_running__)
+        self._check_qstat(output, 'Q', Execution.__status_running__)
+        self._check_qstat(output, 'E', Execution.__status_cancelled__)
+        self._check_qstat(output, '?', Execution.__status_unknown__)
+        self._check_qstat('', '', '?')
+
+        self.assertEqual(torque.parse_qstat_output(output), { 
+            "1186.cloudserver": Execution.__status_unknown__, 
+            "1187.cloudserver": Execution.__status_finished__})
+
+    def _check_qstat(self, output, f_status, expected):
+        id = "1186.cloudserver"
+        output = output.replace('?', f_status)
+        actual = torque.parse_qstat_output(output, id)
+        self.assertEqual(expected, actual[id])
+
+    @mock.patch("executor_common.add_nodes_to_execution")
+    @mock.patch("shell.execute_command")
+    def test_execute_application_type_torque_qsub(self, mock_shell, mock_add_nodes):
+        """
+        It verifies that the application type slurm sbatch is executed
+        """
+
+        # First we verify that the testbed is of type TORQUE to be able
+        # to execute it, in this case it should give an error since it is
+        # not of type torque
+
+        # We define the different entities necessary for the test.
+        testbed = Testbed(name="nova2",
+                          on_line=True,
+                          category="xxxx",
+                          protocol="SSH",
+                          endpoint="user@testbed.com",
+                          package_formats= ['sbatch', 'SINGULARITY'],
+                          extra_config= {
+                              "enqueue_compss_sc_cfg": "nova.cfg" ,
+                              "enqueue_env_file": "/home_nfs/home_ejarquej/installations/rc1707/COMPSs/compssenv"
+                          })
+        db.session.add(testbed)
+
+        application = Application(name="super_app")
+        db.session.add(application)
+        db.session.commit() # So application and testbed get an id
+
+        executable = Executable()
+        executable.compilation_type = Executable.__type_torque_qsub__
+        executable.executable_file = "pepito.sh"
+        db.session.add(executable)
+        db.session.commit() # We do this so executable gets and id
+
+        deployment = Deployment()
+        deployment.testbed_id = testbed.id
+        deployment.executable_id = executable.id
+        db.session.add(deployment) # We add the executable to the db so it has an id
+
+        execution_config = ExecutionConfiguration()
+        execution_config.execution_type = Executable.__type_torque_qsub__
+        execution_config.application = application
+        execution_config.testbed = testbed
+        execution_config.executable = executable 
+        db.session.add(execution_config)
+        db.session.commit()
+
+        execution = Execution()
+        execution.execution_type = Executable.__type_torque_qsub__
+        execution.status =  Execution.__status_submitted__
+
+        torque.execute_batch(execution, execution_config.id)
+
+        self.assertEquals(Execution.__status_failed__, execution.status)
+        self.assertEquals("Testbed does not support TORQUE:QSUB applications", execution.output)
+
+        # If the testbed is off-line, execution isn't allowed also
+        testbed.category = Testbed.torque_category
+        testbed.on_line = False
+        db.session.commit()
+
+        execution = Execution()
+        execution.execution_type = Executable.__type_torque_qsub__
+        execution.status = Execution.__status_submitted__
+
+        torque.execute_batch(execution, execution_config.id)
+
+        self.assertEquals(Executable.__type_torque_qsub__, execution.execution_type)
+        self.assertEquals(Execution.__status_failed__, execution.status)
+        self.assertEquals("Testbed is off-line", execution.output)
+
+        ## Test executing
+        output = b'1208.cloudserver'
+        mock_shell.return_value = output
+
+        testbed.category = Testbed.torque_category
+        testbed.on_line = True
+        db.session.commit()
+
+        execution = Execution()
+        execution.execution_type = Executable.__type_torque_qsub__
+        execution.status = Execution.__status_submitted__
+
+        torque.execute_batch(execution, execution_config.id)
+
+        mock_shell.assert_called_with("qsub", "user@testbed.com", ["pepito.sh"])
+        execution = db.session.query(Execution).filter_by(execution_configuration_id=execution_config.id).first()
+        self.assertEqual(execution.execution_type, execution_config.execution_type)
+        self.assertEqual(execution.status, Execution.__status_running__)
+        self.assertEqual("1208.cloudserver", execution.batch_id)
+
+        # TODO
+        # mock_add_nodes.assert_called_with(execution, "user@testbed.com")
