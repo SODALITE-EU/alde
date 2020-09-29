@@ -15,12 +15,22 @@ pipeline {
         }
         stage('Test') {
             steps {
-                sh ". venv/bin/activate; pyb"
+                sh ". venv/bin/activate; pyb coverage"
             }
         }
         stage('Build Docker image') {
             steps {
                 sh "git fetch --tags && resources/bin/make_docker.sh build sodaliteh2020/alde"
+            }
+        }
+        stage('SonarQube analysis') {
+            environment {
+                scannerHome = tool 'SonarQubeScanner'
+            }
+            steps {
+                withSonarQubeEnv('SonarCloud') {
+                    sh "${scannerHome}/bin/sonar-scanner"
+                }
             }
         }
         stage('Push image to DockerHub') {
