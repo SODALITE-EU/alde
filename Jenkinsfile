@@ -10,7 +10,7 @@ pipeline {
             steps {
                 sh "env"
                 sh "virtualenv venv"
-                sh ". venv/bin/activate; pip install pybuilder==0.11.17; pyb install_dependencies"
+                sh ". venv/bin/activate; pip install pybuilder==0.12.9; pyb install_dependencies"
             }
         }
         stage('Test') {

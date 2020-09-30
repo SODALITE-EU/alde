@@ -6,3 +6,4 @@ target
 alde.log
 commands.log
 src/unittest/python/executor_tests.log
+.pybuilder
