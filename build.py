@@ -22,13 +22,14 @@ from pybuilder.core import init, use_plugin
 
 use_plugin("python.core")
 use_plugin("python.unittest")
-#use_plugin("python.coverage")
+use_plugin("python.coverage")
 use_plugin("python.install_dependencies")
 use_plugin("python.distutils")
 use_plugin("pypi:pybuilder_smart_copy_resources")
 #use_plugin("python.sonarqube")
 
-default_task = ["clean", "publish"]
+name = "alde"
+default_task = ["package"]
 
 # SonarQube configuration:
 sonarqube_project_name = "tango-alde"
@@ -50,6 +51,7 @@ def set_properties(project):
         "gpu_cards_list.json": "target/dist/alde-1.0.dev0/",
         "templates/compilation/*": "target/dist/alde-1.0.dev0/templates/compilation"
     })
+    project.set_property("coverage_exceptions", ["apps_containers", "file_upload.upload", "testbeds.common"])
 
 
 @init
