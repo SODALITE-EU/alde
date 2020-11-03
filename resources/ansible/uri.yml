@@ -1,0 +1,15 @@
+- hosts: all
+  become: no
+  tasks:  
+  - name: REST call
+    uri:
+      method: GET
+      url: http://localhost:5000/api/v1/testbeds
+      #url: http://localhost:8090/agreements
+      return_content: yes
+    register: content
+  - name: save to file
+    copy:
+      content: "{{ content.json }}"
+      dest: /tmp/out.json
+

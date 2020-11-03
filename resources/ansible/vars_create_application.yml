@@ -1,0 +1,3 @@
+application_name: torque-job
+pbs_path: jobs/demo-sing.pbs
+testbed_id: 1

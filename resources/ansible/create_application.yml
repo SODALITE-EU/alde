@@ -1,0 +1,95 @@
+- hosts: all
+  become: no
+  tasks:  
+  - name: create application
+    uri:
+      method: POST
+      url: http://localhost:5000/api/v1/applications
+      body_format: json
+      body:
+        name: "{{ application_name }}"
+      return_content: yes
+      status_code: 201
+    register: content
+
+  - name: parse application ID
+    set_fact:
+      application_id: "{{ content.json.id }}"
+    
+  - name: debug application ID
+    debug: var=application_id
+
+
+  - name: create executable
+    uri:
+      method: POST
+      url: http://localhost:5000/api/v1/executables
+      body_format: json
+      body:
+        application_id: "{{application_id}}"
+        status: COMPILED
+        compilation_type: SINGULARITY_PM
+        executable_file: "{{pbs_path}}"
+      return_content: yes
+      status_code: 201
+    register: content
+
+  - name: parse executable ID
+    set_fact:
+      executable_id: "{{ content.json.id }}"
+
+  - name: debug executable ID
+    debug: var=executable_id
+
+
+  - name: create deployment
+    uri:
+      method: POST
+      url: http://localhost:5000/api/v1/deployments
+      body_format: json
+      body:
+        executable_id: "{{executable_id}}"
+        testbed_id: "{{testbed_id}}"
+      return_content: yes
+      status_code: 201
+    register: content
+
+  - name: debug deployment ID
+    debug: var=content.json
+
+
+  - name: create execution configuration
+    uri:
+      method: POST
+      url: http://localhost:5000/api/v1/execution_configurations
+      body_format: json
+      body:
+        application_id: "{{application_id}}"
+        executable_id: "{{executable_id}}"
+        testbed_id: "{{testbed_id}}"
+        execution_type: TORQUE:QSUB
+        #num_cpus_per_node: 1
+      return_content: yes
+      status_code: 201
+    register: content
+
+  - name: parse configuration ID
+    set_fact:
+      configuration_id: "{{ content.json.id }}"
+
+  - name: debug configuration ID
+    debug: var=configuration_id
+
+
+
+  - name: launch execution configuration
+    uri:
+      method: PATCH
+      url: http://localhost:5000/api/v1/execution_configurations/{{configuration_id}}
+      body_format: json
+      body:
+        launch_execution: true
+      return_content: yes
+      status_code: 200
+    register: content
+
