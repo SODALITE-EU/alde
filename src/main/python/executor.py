@@ -155,19 +155,20 @@ def __execute_pm_applications__(execution, identifier, create_profile, use_stora
 	output = shell.execute_command(command, endpoint, params)
 	sbatch_id = __extract_id_from_sigularity_pm_app__(output)
 	
-	execution = Execution()
-	execution.execution_type = execution_configuration.execution_type
-	execution.status = Execution.__status_running__
-	execution_configuration.executions.append(execution)
+	# Saving the new execution in the DB
+	new_execution = Execution()
+	new_execution.execution_type = execution_configuration.execution_type
+	new_execution.status = Execution.__status_running__
+	execution_configuration.executions.append(new_execution)
 	# if we create the profile, we add it to the execution configuration
 	if create_profile :
 		execution_configuration.profile_file = profile_file
-	execution.batch_id = sbatch_id
+	new_execution.batch_id = sbatch_id
 	db.session.commit()
 
-	# Add nodes
+	# Add nodes of the new execution
 	time.sleep(5)
-	__add_nodes_to_execution__(execution, endpoint)
+	__add_nodes_to_execution__(new_execution, endpoint)
 
 def __get_srun_info__(execution, identifier):
 	"""
