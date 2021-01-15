@@ -9,7 +9,7 @@ pipeline {
         stage('Install dependencies') {
             steps {
                 sh "env"
-                sh "virtualenv venv"
+                sh "virtualenv -p python3 venv"
                 sh ". venv/bin/activate; pip install pybuilder==0.12.9; pyb install_dependencies"
             }
         }
