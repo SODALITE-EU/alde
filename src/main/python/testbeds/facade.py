@@ -21,7 +21,6 @@
 
 import logging
 import shell
-from typing import List
 
 import query
 from models import db, Node, CPU, GPU, Testbed, Memory
@@ -53,8 +52,8 @@ def check_nodes_in_db_for_on_line_testbeds():
         for testbed in testbeds:
             check_testbed_nodes_in_db(testbed)
 
-
-def check_testbed_nodes_in_db(testbed: Testbed.Category):
+#TODO: def check_testbed_nodes_in_db(testbed: Testbed.Category):
+def check_testbed_nodes_in_db(testbed):
     """This function is going to get all the nodes in the db that are online and
     of given category.
 
@@ -127,7 +126,8 @@ def update_cpu_node_information():
             update_testbed_cpu_node_information(testbed)
 
 
-def update_testbed_cpu_node_information(testbed: Testbed):
+#TODO: def update_testbed_cpu_node_information(testbed: Testbed):
+def update_testbed_cpu_node_information(testbed):
     """This method updates the CPU information of nodes of a testbed.
 
     It is going to try to ssh into the node if the node is enabled. If an
@@ -159,7 +159,8 @@ def update_node_information():
             update_testbed_node_information(testbed)
 
 
-def update_testbed_node_information(testbed: Testbed):
+#TODO: def update_testbed_node_information(testbed: Testbed):
+def update_testbed_node_information(testbed):
     """Update the information from nodes in the given testbed according to the information
     retrieved from the workload manager"""
     module = categories.get(testbed.category, None)

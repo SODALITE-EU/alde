@@ -20,16 +20,11 @@
 #
 
 import shell
-from typing import List
 
 from models import Testbed
 
-def get_nodes_testbed(
-    testbed: Testbed, 
-    command: str,
-    params: List[str],
-    parse_func) -> List[dict]:
-
+#TODO: def get_nodes_testbed(testbed: Testbed, command: str,params: List[str], parse_func) -> List[dict]:
+def get_nodes_testbed(testbed, command, params, parse_func):
     """This function gets the list of nodes of a testbed, executing the given
     command+params according to the testbed protocol. 
 
@@ -47,13 +42,8 @@ def get_nodes_testbed(
 
     return parse_func(output)
 
-
-def get_nodes_information(    
-    testbed: Testbed, 
-    command: str,
-    params: List[str],
-    parse_func) -> List[dict]:
-    
+#TODO: def get_nodes_information(testbed: Testbed, command: str, params: List[str], parse_func) -> List[dict]:
+def get_nodes_information(testbed, command, params, parse_func):
     """Returns a list of dictionaries where each item list correspond to a node in the
     testbed. Dictionary keys must be normalized according to the constants defined in constants.py
     (e.g., the key for the node name is constants.NAME).

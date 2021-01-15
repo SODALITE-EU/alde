@@ -30,7 +30,6 @@ import inventory
 import xmltodict
 import executor_common
 from models import db, Testbed, Node, CPU, GPU, Memory, Execution, Testbed, Executable
-from typing import Dict, List, Tuple
 
 from testbeds.constants import NAME
 from testbeds.constants import MEMORY
@@ -50,7 +49,8 @@ _GPU_MODEL = "gpu_product_name"
 _TOTAL_MEM = "totmem"
 
 
-def get_nodes_testbed(testbed: Testbed) -> List[dict]:
+#TODO: def get_nodes_testbed(testbed: Testbed) -> List[dict]:
+def get_nodes_testbed(testbed):
     """
     This function gets the testbed object information, from that information
     it determines if the testbed it is of the category TORQUE.
@@ -92,7 +92,8 @@ def _parse_pbsnodes_information(command_output):
     return nodes
 
 
-def _parse_status(statusline: str, fs=","):
+#TODO: def _parse_status(statusline: str, fs=","):
+def _parse_status(statusline, fs=","):
     """Parses different fields of the status line in the output of pbsnodes
     
     It returns a dictionary with all the parsed fields"""
@@ -100,7 +101,8 @@ def _parse_status(statusline: str, fs=","):
     return { part[0]: part[1] for part in parts }
 
 
-def get_node_information(testbed: Testbed) -> List[Dict]:
+#TODO: def get_node_information(testbed: Testbed) -> List[Dict]:
+def get_node_information(testbed):
     """Returns a list of dictionaries where each item list correspond to a node in the
     testbed. Dictionary keys must be normalized according to the constants defined in constants.py
     (e.g., the key for the node name is constants.NAME).
@@ -113,7 +115,8 @@ def get_node_information(testbed: Testbed) -> List[Dict]:
     return testbeds.common.get_nodes_testbed(testbed, command, params, _parse_pbsnodes_information)
 
 
-def parse_memory(memory: str) -> Memory:
+#TODO: def parse_memory(memory: str) -> Memory:
+def parse_memory(memory):
     """Parses free text from pbsnodes.status output, returning [ size, unit ].
     On error, returns [0, Memory.MEGABYTE] """
 
@@ -157,7 +160,8 @@ def parse_gre_field_info(gre):
     return resources
 
 
-def _find_gpus(status: Dict):
+#TODO: def _find_gpus(status: Dict):
+def _find_gpus(status):
     """
     """
     i = 0
@@ -218,13 +222,15 @@ def extract_id_from_qsub(output):
     output = output.decode('utf-8').split()
     return output[0]
 
-def exec_qstat(endpoint: str):
+
+#TODO: def exec_qstat(endpoint: str):
+def exec_qstat(endpoint):
     output = shell.execute_command('qstat', server=endpoint)
     output = output.decode('utf-8')
     return output
 
-
-def parse_qstat_output(output: str, job_id=None) -> Dict:
+#TODO: def parse_qstat_output(output: str, job_id=None) -> Dict:
+def parse_qstat_output(output, job_id=None):
     """Parse the output of qstat. It returns a dict(key=job_id, value=status).
     If the parameter id is passed, the returned dict only has one key 
     (the id parameter) - if no line is found in qstat for id, the status is '?'. 
