@@ -4,7 +4,7 @@ WORKDIR /usr/src/alde
 COPY . .
 RUN . /opt/venv/bin/activate; pip install pybuilder==0.12.9; pyb -o
 
-FROM python:3.7-alpine
+FROM python:3.13.0rc1-alpine
 WORKDIR /opt/alde
 RUN apk add -qU openssh-client
 COPY --from=compile /usr/src/alde/target/dist/alde-1.0.dev0/ .
